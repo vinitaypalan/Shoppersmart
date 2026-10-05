@@ -1,0 +1,17 @@
+# AWS credentials and config - never commit these
+.aws/
+*.pem
+*.key
+
+# Environment / secrets files
+.env
+.env.*
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor folders
+.vscode/
+.idea/
