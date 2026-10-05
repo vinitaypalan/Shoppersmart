@@ -1,0 +1,458 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  ShoppersMart - S3 static website hosting with CloudFront CDN and AWS WAF protection.
+  Creates an S3 bucket with static website hosting enabled, a CloudFront distribution
+  using Origin Access Control (OAC) to restrict direct S3 access, a WAF WebACL with
+  AWS-managed SQL injection protection attached to the distribution, and a bucket policy
+  that allows only CloudFront to read objects. All public access to S3 is blocked.
+  NOTE: This stack must be deployed to us-east-1 because CloudFront-scoped WAF WebACLs
+  are only supported in that region.
+
+# ===========================================================
+# PARAMETERS
+# ===========================================================
+Parameters:
+
+  BucketName:
+    Type: String
+    Description: >
+      Globally unique name for the S3 bucket.
+      Must be lowercase letters, numbers, and hyphens only (3-63 characters).
+    AllowedPattern: "^[a-z0-9][a-z0-9\\-]{1,61}[a-z0-9]$"
+    ConstraintDescription: >
+      Must be 3-63 characters, lowercase alphanumeric and hyphens,
+      cannot start or end with a hyphen.
+
+  IndexDocument:
+    Type: String
+    Default: index.html
+    Description: The default root document of the website.
+
+  ErrorDocument:
+    Type: String
+    Default: index.html
+    Description: >
+      The document returned for 4xx errors.
+      Using index.html lets client-side routing handle unknown paths.
+
+  PriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+    Description: >
+      CloudFront price class.
+      PriceClass_100 uses only North America and Europe edge locations (lowest cost).
+      PriceClass_200 adds Asia, Middle East, and Africa.
+      PriceClass_All uses all edge locations globally.
+
+  EnableWAF:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: >
+      Set to true to create and attach the WAF WebACL with SQL injection protection.
+      Set to false to skip WAF (e.g. for cost-sensitive dev environments).
+
+# ===========================================================
+# CONDITIONS
+# ===========================================================
+Conditions:
+
+  # WAF for CloudFront must reside in us-east-1. Guard against accidental
+  # deployment to another region with a condition used on WAF resources.
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
+  # Combined: only create WAF resources when both the flag is on AND region is correct.
+  CreateWAF: !And
+    - !Equals [!Ref EnableWAF, "true"]
+    - !Condition IsUsEast1
+
+# ===========================================================
+# RESOURCES
+# ===========================================================
+Resources:
+
+  # -----------------------------------------------------------
+  # S3 Bucket - static website hosting, public access BLOCKED
+  # -----------------------------------------------------------
+  ShoppersMartBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
+      # Static website hosting - keeps IndexDocument / ErrorDocument behaviour;
+      # CloudFront mirrors this via DefaultRootObject and custom error responses.
+      WebsiteConfiguration:
+        IndexDocument: !Ref IndexDocument
+        ErrorDocument: !Ref ErrorDocument
+
+      # Block ALL public access - content is only reachable through CloudFront.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+      # Optional: enable versioning so you can roll back deployments
+      VersioningConfiguration:
+        Status: Enabled
+
+      # S3 request metrics - required for AllRequests to appear in CloudWatch.
+      # Without this configuration the AWS/S3 AllRequests metric is never emitted.
+      # The Id "EntireBucket" scopes the filter to every object in the bucket.
+      MetricsConfigurations:
+        - Id: EntireBucket
+
+      # CORS - allows browser fetch calls from the CloudFront distribution origin
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - "*"
+            MaxAge: 3600
+
+      Tags:
+        - Key: Project
+          Value: ShoppersMart
+        - Key: Environment
+          Value: Production
+
+  # -----------------------------------------------------------
+  # Bucket Policy - grants CloudFront OAC read access only
+  # -----------------------------------------------------------
+  ShoppersMartBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ShoppersMartBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontOACGetObject
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${BucketName}/*"
+            Condition:
+              StringEquals:
+                # Restricts access to this specific CloudFront distribution only
+                AWS:SourceArn: !Sub
+                  - "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistId}"
+                  - DistId: !GetAtt ShoppersMartDistribution.Id
+
+  # -----------------------------------------------------------
+  # CloudFront Origin Access Control (OAC)
+  # Signs requests from CloudFront to S3 using SigV4 so the
+  # bucket policy can verify the request came from this distribution.
+  # -----------------------------------------------------------
+  ShoppersMartOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${BucketName}-oac"
+        Description: !Sub "OAC for ShoppersMart S3 bucket - ${BucketName}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # -----------------------------------------------------------
+  # WAF WebACL - SQL injection protection (CloudFront scope)
+  #
+  # Uses the AWS-managed rule group AWSManagedRulesSQLiRuleSet which
+  # covers the OWASP Top 10 SQL injection attack patterns across all
+  # request components (URI, query string, body, headers, cookies).
+  #
+  # Scope MUST be CLOUDFRONT and the stack MUST be in us-east-1.
+  # The EnableWAF parameter lets you disable this for dev environments.
+  # -----------------------------------------------------------
+  ShoppersMartWebACL:
+    Type: AWS::WAFv2::WebACL
+    Condition: CreateWAF
+    Properties:
+      Name: !Sub "${BucketName}-waf"
+      Scope: CLOUDFRONT
+      Description: !Sub "WAF WebACL for ShoppersMart CloudFront distribution - ${BucketName}"
+
+      # Default action: allow all requests that do not match any rule.
+      # Individual rules below override this for matched requests.
+      DefaultAction:
+        Allow: {}
+
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub "${BucketName}-waf"
+
+      Rules:
+        # -------------------------------------------------------
+        # Rule 1: AWS Managed Rules - SQL Database rule group
+        #
+        # AWSManagedRulesSQLiRuleSet inspects all request components
+        # for SQL injection signatures. Managed by AWS Threat Intelligence;
+        # no signature updates required from your side.
+        #
+        # Priority 0 - evaluated first.
+        # -------------------------------------------------------
+        - Name: AWSManagedRulesSQLiRuleSet
+          Priority: 0
+          OverrideAction:
+            # "None" means use the action defined inside the managed rule group
+            # (Block for matched requests). Change to Count: {} to switch to
+            # monitoring-only mode without blocking traffic.
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesSQLiRuleSet
+
+        # -------------------------------------------------------
+        # Rule 2: AWS Managed Rules - Known Bad Inputs rule group
+        #
+        # Blocks request patterns that are known to be invalid and
+        # are associated with exploitation (e.g. Log4JRCE, PROPFIND).
+        # Complements the SQLi rule group at no extra managed-rule cost.
+        #
+        # Priority 1 - evaluated after SQLi rule.
+        # -------------------------------------------------------
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesKnownBadInputsRuleSet
+
+      Tags:
+        - Key: Project
+          Value: ShoppersMart
+        - Key: Environment
+          Value: Production
+
+  # -----------------------------------------------------------
+  # CloudFront Distribution
+  # Uses the S3 REST endpoint as the origin (required for OAC).
+  # DefaultRootObject and custom error responses replicate the
+  # behaviour that S3 static website hosting normally provides.
+  # The WAF WebACL ARN is attached when the CreateWAF condition is true.
+  # -----------------------------------------------------------
+  ShoppersMartDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: ShoppersMartBucket
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "ShoppersMart CDN - ${BucketName}"
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: !Ref PriceClass
+
+        # Attach the WAF WebACL when it was created; omit the property otherwise.
+        # CloudFront reads WAF from us-east-1 automatically.
+        WebACLId: !If
+          - CreateWAF
+          - !GetAtt ShoppersMartWebACL.Arn
+          - !Ref "AWS::NoValue"
+
+        # Serve index.html when the root path "/" is requested
+        DefaultRootObject: !Ref IndexDocument
+
+        # S3 REST API endpoint (NOT the website endpoint) - required for OAC
+        Origins:
+          - Id: S3Origin
+            # Regional endpoint avoids eventual-consistency issues with global endpoints
+            DomainName: !Sub "${BucketName}.s3.${AWS::Region}.amazonaws.com"
+            OriginAccessControlId: !GetAtt ShoppersMartOAC.Id
+            S3OriginConfig:
+              # Must be empty string when using OAC (OAI is not used)
+              OriginAccessIdentity: ""
+
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          # Use the AWS-managed CachingOptimized policy (ID is a well-known constant)
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # Use the AWS-managed CORS-S3Origin origin request policy
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          Compress: true
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+
+        # Mirror S3 website hosting error behaviour:
+        # S3 returns 403 (access denied) for missing objects when public access
+        # is blocked, so map both 403 and 404 to the error document.
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: !Sub "/${ErrorDocument}"
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: !Sub "/${ErrorDocument}"
+            ErrorCachingMinTTL: 10
+
+      Tags:
+        - Key: Project
+          Value: ShoppersMart
+        - Key: Environment
+          Value: Production
+
+  # -----------------------------------------------------------
+  # CloudWatch Dashboard
+  #
+  # Displays two widgets side by side:
+  #   Left  - CloudFront Requests (namespace AWS/CloudFront, us-east-1)
+  #   Right - S3 AllRequests      (namespace AWS/S3, stack region)
+  #
+  # CloudFront metrics are always published to us-east-1 regardless of
+  # where the stack is deployed, so the widget region is hardcoded there.
+  # S3 request metrics require the MetricsConfiguration on the bucket above.
+  # -----------------------------------------------------------
+  ShoppersMartDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-dashboard"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "CloudFront Requests",
+                "view": "timeSeries",
+                "stacked": false,
+                "stat": "Sum",
+                "period": 300,
+                "region": "us-east-1",
+                "metrics": [
+                  [
+                    "AWS/CloudFront",
+                    "Requests",
+                    "DistributionId", "${ShoppersMartDistribution}",
+                    "Region", "Global",
+                    { "label": "Requests (5-min sum)", "color": "#1f77b4" }
+                  ]
+                ],
+                "yAxis": { "left": { "min": 0, "label": "Requests", "showUnits": false } },
+                "legend": { "position": "bottom" }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "S3 AllRequests",
+                "view": "timeSeries",
+                "stacked": false,
+                "stat": "Sum",
+                "period": 300,
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [
+                    "AWS/S3",
+                    "AllRequests",
+                    "BucketName", "${BucketName}",
+                    "FilterId", "EntireBucket",
+                    { "label": "All S3 Requests (5-min sum)", "color": "#ff7f0e" }
+                  ]
+                ],
+                "yAxis": { "left": { "min": 0, "label": "Requests", "showUnits": false } },
+                "legend": { "position": "bottom" }
+              }
+            }
+          ]
+        }
+
+# ===========================================================
+# OUTPUTS
+# ===========================================================
+Outputs:
+
+  CloudFrontURL:
+    Description: CloudFront distribution URL (HTTPS) - use this as your website address
+    Value: !Sub "https://${ShoppersMartDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontURL"
+
+  CloudFrontDomainName:
+    Description: CloudFront distribution domain name
+    Value: !GetAtt ShoppersMartDistribution.DomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDomainName"
+
+  CloudFrontDistributionId:
+    Description: CloudFront distribution ID (needed for cache invalidations)
+    Value: !GetAtt ShoppersMartDistribution.Id
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
+
+  WAFWebACLArn:
+    Description: ARN of the WAF WebACL attached to the CloudFront distribution
+    Condition: CreateWAF
+    Value: !GetAtt ShoppersMartWebACL.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-WAFWebACLArn"
+
+  WAFWebACLId:
+    Description: ID of the WAF WebACL (use in the WAF console to view metrics and sampled requests)
+    Condition: CreateWAF
+    Value: !GetAtt ShoppersMartWebACL.Id
+    Export:
+      Name: !Sub "${AWS::StackName}-WAFWebACLId"
+
+  WebsiteURL:
+    Description: >
+      S3 static website endpoint (HTTP - direct access is now blocked;
+      kept as a reference for the bucket's website hosting configuration).
+    Value: !GetAtt ShoppersMartBucket.WebsiteURL
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteURL"
+
+  BucketName:
+    Description: Name of the S3 bucket
+    Value: !Ref ShoppersMartBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-BucketName"
+
+  BucketArn:
+    Description: ARN of the S3 bucket
+    Value: !GetAtt ShoppersMartBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-BucketArn"
+
+  S3ConsoleURL:
+    Description: Direct link to the bucket in the AWS Console
+    Value: !Sub "https://s3.console.aws.amazon.com/s3/buckets/${BucketName}"
+
+  DashboardURL:
+    Description: CloudWatch dashboard URL
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${AWS::StackName}-dashboard"
+    Export:
+      Name: !Sub "${AWS::StackName}-DashboardURL"

@@ -1,0 +1,113 @@
+name: Deploy to S3 + Invalidate CloudFront
+
+# Trigger on every push to the main branch.
+# Only runs when website source files actually change,
+# skipping pushes that only touch infra or workflow files.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "script.js"
+      # Extend this list if you add images, fonts, or other assets.
+      - "assets/**"
+
+# Prevent concurrent deployments. If a new push arrives while a
+# deploy is in progress, cancel the in-progress run and start fresh.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Sync files and invalidate cache
+    runs-on: ubuntu-latest
+
+    # Least-privilege permissions for the job token.
+    # id-token is required if you ever switch to OIDC auth.
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      # -------------------------------------------------------
+      # 1. Check out the repository
+      # -------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------
+      # 2. Configure AWS credentials from repository secrets.
+      #
+      # Required secrets (set in GitHub -> Settings -> Secrets
+      # and variables -> Actions -> New repository secret):
+      #
+      #   AWS_ACCESS_KEY_ID      - IAM user access key ID
+      #   AWS_SECRET_ACCESS_KEY  - IAM user secret access key
+      #   AWS_REGION             - e.g. us-east-1
+      #   S3_BUCKET_NAME         - e.g. shoppersmart-website-806731
+      #   CLOUDFRONT_DISTRIBUTION_ID - e.g. E1ABCDEF2GHIJK
+      # -------------------------------------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # -------------------------------------------------------
+      # 3. Sync website files to S3.
+      #
+      # --delete removes any files in the bucket that no longer
+      # exist in the repo, keeping the bucket in sync with source.
+      #
+      # --cache-control sets a 5-minute browser cache on all files.
+      # CloudFront will serve from edge cache; browsers revalidate
+      # after 300 seconds. Adjust per-file type if needed.
+      #
+      # Infra files (template.yaml, deploy.ps1) and the .github
+      # folder are explicitly excluded so they never reach S3.
+      # -------------------------------------------------------
+      - name: Sync website files to S3
+        run: |
+          aws s3 sync . s3://${{ secrets.S3_BUCKET_NAME }} \
+            --delete \
+            --cache-control "max-age=300, must-revalidate" \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "template.yaml" \
+            --exclude "deploy.ps1" \
+            --exclude "*.md" \
+            --exclude ".gitignore"
+
+      # -------------------------------------------------------
+      # 4. Invalidate the CloudFront cache.
+      #
+      # /* invalidates every path so CloudFront fetches fresh
+      # copies from S3 on the next request after the deploy.
+      # The --no-cli-pager flag prevents output from hanging
+      # in non-interactive CI environments.
+      # -------------------------------------------------------
+      - name: Invalidate CloudFront cache
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*" \
+            --no-cli-pager \
+            --query "Invalidation.Id" \
+            --output text)
+          echo "Invalidation created: $INVALIDATION_ID"
+
+      # -------------------------------------------------------
+      # 5. Print the live URL for quick verification.
+      # -------------------------------------------------------
+      - name: Print deployment summary
+        run: |
+          echo "--------------------------------------------"
+          echo "Deployment complete"
+          echo "Bucket       : ${{ secrets.S3_BUCKET_NAME }}"
+          echo "Distribution : ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}"
+          echo "Region       : ${{ secrets.AWS_REGION }}"
+          echo "--------------------------------------------"

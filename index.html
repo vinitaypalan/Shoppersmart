@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="ShoppersMart – Shop millions of products at great prices. Fast delivery, easy returns." />
+  <title>ShoppersMart – Shop. Save. Smile.</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===================================================
+       TOP BANNER
+       =================================================== -->
+  <div class="top-banner">
+    🚚 Free delivery on orders over $25 shipped by ShoppersMart &nbsp;|&nbsp;
+    New customers: Get 10% off your first order with code <strong>WELCOME10</strong>
+  </div>
+
+  <!-- ===================================================
+       HEADER
+       =================================================== -->
+  <header>
+    <div class="header-main">
+
+      <!-- Logo -->
+      <a class="logo" href="index.html" aria-label="ShoppersMart Home">
+        <div>
+          <span class="logo-text">Shoppers<span>Mart</span></span>
+          <span class="logo-tagline">.com</span>
+        </div>
+      </a>
+
+      <!-- Deliver to -->
+      <div class="deliver-to" aria-label="Delivery location">
+        <span>Deliver to</span>
+        <strong>📍 New York 10001</strong>
+      </div>
+
+      <!-- Search Bar -->
+      <form class="search-bar" role="search" onsubmit="handleSearch(event)">
+        <select class="search-category" id="search-category" aria-label="Search category">
+          <option value="">All</option>
+          <option value="Electronics">Electronics</option>
+          <option value="Home &amp; Kitchen">Home &amp; Kitchen</option>
+          <option value="Clothing">Clothing</option>
+          <option value="Sports &amp; Outdoors">Sports &amp; Outdoors</option>
+          <option value="Books">Books</option>
+          <option value="Toys &amp; Games">Toys &amp; Games</option>
+        </select>
+        <input
+          class="search-input"
+          id="search-input"
+          type="search"
+          placeholder="Search ShoppersMart"
+          autocomplete="off"
+          aria-label="Search products"
+        />
+        <button class="search-btn" type="submit" aria-label="Search">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+              stroke="#0F1111" stroke-width="2.5" stroke-linecap="round"
+              fill="none"/>
+          </svg>
+        </button>
+      </form>
+
+      <!-- Header Links -->
+      <div class="header-links">
+        <div class="header-link" tabindex="0" role="button" aria-label="Sign in">
+          <span>Hello, sign in</span>
+          <strong>Account &amp; Lists ▾</strong>
+        </div>
+        <div class="header-link" tabindex="0" role="button" aria-label="Returns and orders">
+          <span>Returns</span>
+          <strong>&amp; Orders</strong>
+        </div>
+        <a class="cart-link" href="cart.html" aria-label="Shopping cart">
+          <div class="cart-icon" aria-hidden="true">
+            <svg width="34" height="29" viewBox="0 0 34 29" fill="none">
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="10" cy="26" r="2" fill="#fff"/>
+              <circle cx="21" cy="26" r="2" fill="#fff"/>
+            </svg>
+            <span class="cart-count" id="cart-count" aria-live="polite">0</span>
+          </div>
+          <span>Cart</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================================================
+       NAVIGATION BAR
+       =================================================== -->
+  <nav class="navbar" aria-label="Main navigation">
+    <div class="navbar-inner">
+      <span class="nav-item all-menu" onclick="toggleAllMenu()">☰ All</span>
+      <a class="nav-item" href="#" onclick="filterByCategory('Electronics')">Electronics</a>
+      <a class="nav-item" href="#" onclick="filterByCategory('Home & Kitchen')">Home &amp; Kitchen</a>
+      <a class="nav-item" href="#" onclick="filterByCategory('Clothing')">Clothing</a>
+      <a class="nav-item" href="#" onclick="filterByCategory('Sports & Outdoors')">Sports &amp; Outdoors</a>
+      <a class="nav-item" href="#" onclick="filterByCategory('Books')">Books</a>
+      <a class="nav-item" href="#" onclick="filterByCategory('Toys & Games')">Toys &amp; Games</a>
+      <a class="nav-item" href="#deals-section">Today's Deals</a>
+      <a class="nav-item" href="#">Customer Service</a>
+      <a class="nav-item" href="#">New Arrivals</a>
+      <a class="nav-item" href="#">Sell</a>
+    </div>
+  </nav>
+
+  <!-- ===================================================
+       HERO SLIDER
+       =================================================== -->
+  <section class="hero" aria-label="Promotional banners">
+    <div class="hero-slider" id="hero-slider">
+
+      <!-- Slide 1 -->
+      <div class="hero-slide">
+        <div class="hero-content">
+          <span class="hero-label">⚡ Flash Sale</span>
+          <h1 class="hero-title">Big Deals on<br>Electronics</h1>
+          <p class="hero-subtitle">Up to 50% off on the latest gadgets, smartphones, laptops &amp; more. Limited time offer.</p>
+          <a class="hero-btn" href="#" onclick="filterByCategory('Electronics')">Shop Electronics →</a>
+        </div>
+        <div class="hero-img" aria-hidden="true">
+          <div class="hero-img-circle">💻</div>
+        </div>
+      </div>
+
+      <!-- Slide 2 -->
+      <div class="hero-slide">
+        <div class="hero-content">
+          <span class="hero-label">🏡 Home Refresh</span>
+          <h1 class="hero-title">Transform Your<br>Living Space</h1>
+          <p class="hero-subtitle">Discover thousands of home essentials, kitchen gadgets, and decor at unbeatable prices.</p>
+          <a class="hero-btn" href="#" onclick="filterByCategory('Home & Kitchen')">Shop Home →</a>
+        </div>
+        <div class="hero-img" aria-hidden="true">
+          <div class="hero-img-circle">🍳</div>
+        </div>
+      </div>
+
+      <!-- Slide 3 -->
+      <div class="hero-slide">
+        <div class="hero-content">
+          <span class="hero-label">🔥 Hot Deals</span>
+          <h1 class="hero-title">Summer Style<br>Savings</h1>
+          <p class="hero-subtitle">Fresh arrivals in fashion, sports gear, books &amp; toys — shop today's best picks.</p>
+          <a class="hero-btn" href="#" onclick="scrollToProducts()">Explore Deals →</a>
+        </div>
+        <div class="hero-img" aria-hidden="true">
+          <div class="hero-img-circle">🛍️</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="hero-prev" onclick="changeSlide(-1)" aria-label="Previous slide">&#8249;</button>
+    <button class="hero-next" onclick="changeSlide(1)" aria-label="Next slide">&#8250;</button>
+
+    <div class="hero-dots" role="tablist" aria-label="Slide navigation">
+      <div class="hero-dot active" onclick="goToSlide(0)" role="tab" aria-selected="true" tabindex="0"></div>
+      <div class="hero-dot" onclick="goToSlide(1)" role="tab" aria-selected="false" tabindex="0"></div>
+      <div class="hero-dot" onclick="goToSlide(2)" role="tab" aria-selected="false" tabindex="0"></div>
+    </div>
+  </section>
+
+  <!-- ===================================================
+       MAIN CONTENT
+       =================================================== -->
+  <main class="main-content" id="main-content">
+
+    <!-- Categories Section (shown on homepage) -->
+    <section id="categories-section" aria-labelledby="categories-title">
+      <div class="section-header">
+        <h2 class="section-title" id="categories-title">Shop by Category</h2>
+      </div>
+      <div class="category-grid">
+        <div class="category-card" onclick="filterByCategory('Electronics')" tabindex="0" role="button" aria-label="Shop Electronics">
+          <span class="cat-emoji" aria-hidden="true">📱</span>
+          <h3>Electronics</h3>
+          <span class="cat-link">See all &rsaquo;</span>
+        </div>
+        <div class="category-card" onclick="filterByCategory('Home & Kitchen')" tabindex="0" role="button" aria-label="Shop Home & Kitchen">
+          <span class="cat-emoji" aria-hidden="true">🏠</span>
+          <h3>Home &amp; Kitchen</h3>
+          <span class="cat-link">See all &rsaquo;</span>
+        </div>
+        <div class="category-card" onclick="filterByCategory('Clothing')" tabindex="0" role="button" aria-label="Shop Clothing">
+          <span class="cat-emoji" aria-hidden="true">👗</span>
+          <h3>Clothing</h3>
+          <span class="cat-link">See all &rsaquo;</span>
+        </div>
+        <div class="category-card" onclick="filterByCategory('Sports & Outdoors')" tabindex="0" role="button" aria-label="Shop Sports & Outdoors">
+          <span class="cat-emoji" aria-hidden="true">⚽</span>
+          <h3>Sports &amp; Outdoors</h3>
+          <span class="cat-link">See all &rsaquo;</span>
+        </div>
+        <div class="category-card" onclick="filterByCategory('Books')" tabindex="0" role="button" aria-label="Shop Books">
+          <span class="cat-emoji" aria-hidden="true">📚</span>
+          <h3>Books</h3>
+          <span class="cat-link">See all &rsaquo;</span>
+        </div>
+        <div class="category-card" onclick="filterByCategory('Toys & Games')" tabindex="0" role="button" aria-label="Shop Toys & Games">
+          <span class="cat-emoji" aria-hidden="true">🎮</span>
+          <h3>Toys &amp; Games</h3>
+          <span class="cat-link">See all &rsaquo;</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Deals Section -->
+    <section class="deals-strip" id="deals-section" aria-labelledby="deals-title">
+      <div class="section-header">
+        <h2 class="section-title" id="deals-title">⚡ Today's Deals</h2>
+        <span class="see-more" onclick="filterByCategory('')">See all deals</span>
+      </div>
+      <div class="deals-grid" id="deals-grid">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- Search Results Bar (hidden by default) -->
+    <div class="results-bar hidden" id="results-bar">
+      <div class="results-info" id="results-info"></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label for="sort-select" style="font-size:13px;">Sort by:</label>
+        <select class="sort-select" id="sort-select" onchange="handleSortChange()" aria-label="Sort products">
+          <option value="featured">Featured</option>
+          <option value="price-asc">Price: Low to High</option>
+          <option value="price-desc">Price: High to Low</option>
+          <option value="rating">Avg. Customer Review</option>
+          <option value="reviews">Most Reviews</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Product Grid -->
+    <section id="products-section" aria-labelledby="products-title">
+      <div class="section-header" id="products-section-header">
+        <h2 class="section-title" id="products-title">Best Sellers</h2>
+        <span class="see-more" onclick="filterByCategory('')">View all</span>
+      </div>
+      <div class="product-grid" id="product-grid" role="list">
+        <!-- Populated by JS -->
+      </div>
+      <div class="pagination" id="pagination" role="navigation" aria-label="Product pages">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================================================
+       QUICK VIEW / BUY MODAL
+       =================================================== -->
+  <div class="modal-overlay" id="product-modal" role="dialog" aria-modal="true" aria-labelledby="modal-product-title"
+    onclick="closeModalOnOverlay(event)">
+    <div class="modal-box">
+      <div class="modal-close">
+        <button class="modal-close-btn" onclick="closeModal()" aria-label="Close product details">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-img" id="modal-img" aria-hidden="true"></div>
+        <div class="modal-info">
+          <p class="modal-brand" id="modal-brand"></p>
+          <h2 id="modal-product-title"></h2>
+          <div class="modal-stars" id="modal-stars"></div>
+          <div class="modal-price" id="modal-price"></div>
+          <div class="modal-original" id="modal-original"></div>
+          <div class="modal-save" id="modal-save"></div>
+          <hr class="modal-divider" />
+          <p class="prime-badge" id="modal-prime">⚡ Prime FREE One-Day Delivery</p>
+          <div class="modal-qty">
+            <label for="modal-qty-select">Qty:</label>
+            <select id="modal-qty-select" class="qty-select" aria-label="Select quantity">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <hr class="modal-divider" />
+          <h4>About this item</h4>
+          <ul class="modal-features" id="modal-features"></ul>
+          <div class="modal-btn-group">
+            <button class="btn-modal-cart" id="btn-modal-cart" onclick="addToCartFromModal()">
+              🛒 Add to Cart
+            </button>
+            <button class="btn-modal-buy" id="btn-modal-buy" onclick="buyNowFromModal()">
+              ⚡ Buy Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================
+       ORDER CONFIRMATION OVERLAY
+       =================================================== -->
+  <div class="order-overlay" id="order-overlay" role="dialog" aria-modal="true" aria-labelledby="order-heading">
+    <div class="order-box">
+      <div class="order-check">✅</div>
+      <h2 id="order-heading">Order Placed!</h2>
+      <p>Thank you for shopping with <strong>ShoppersMart</strong>.</p>
+      <p>Your order has been placed and is being processed.</p>
+      <div class="order-number" id="order-number" aria-live="polite"></div>
+      <p style="font-size:13px;color:#777;">Estimated delivery: <strong>2–3 business days</strong></p>
+      <button class="btn-order-done" onclick="closeOrderOverlay()">Continue Shopping</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="sm-toast" role="status" aria-live="polite"></div>
+
+  <!-- ===================================================
+       FOOTER
+       =================================================== -->
+  <div class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" tabindex="0"
+    onkeypress="if(event.key==='Enter')window.scrollTo({top:0,behavior:'smooth'})">
+    Back to top
+  </div>
+
+  <footer>
+    <div class="footer-main">
+      <div class="footer-col">
+        <h4>Get to Know Us</h4>
+        <ul>
+          <li><a href="#">Careers</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">About ShoppersMart</a></li>
+          <li><a href="#">Investor Relations</a></li>
+          <li><a href="#">ShoppersMart Devices</a></li>
+          <li><a href="#">Social Responsibility</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Make Money with Us</h4>
+        <ul>
+          <li><a href="#">Sell products on ShoppersMart</a></li>
+          <li><a href="#">Sell on ShoppersMart Business</a></li>
+          <li><a href="#">Become an Affiliate</a></li>
+          <li><a href="#">Advertise Your Products</a></li>
+          <li><a href="#">Publish with Us</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Payment Products</h4>
+        <ul>
+          <li><a href="#">ShoppersMart Business Card</a></li>
+          <li><a href="#">Shop with Points</a></li>
+          <li><a href="#">Reload Your Balance</a></li>
+          <li><a href="#">ShoppersMart Currency Converter</a></li>
+          <li><a href="#">Gift Cards</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Let Us Help You</h4>
+        <ul>
+          <li><a href="#">ShoppersMart and COVID-19</a></li>
+          <li><a href="#">Your Account</a></li>
+          <li><a href="#">Your Orders</a></li>
+          <li><a href="#">Shipping Rates &amp; Policies</a></li>
+          <li><a href="#">Returns &amp; Replacements</a></li>
+          <li><a href="#">Manage Your Content</a></li>
+          <li><a href="#">ShoppersMart Assistant</a></li>
+          <li><a href="#">Help</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="footer-logo">Shoppers<span>Mart</span></div>
+      <p>Conditions of Use &nbsp;|&nbsp; Privacy Notice &nbsp;|&nbsp; Consumer Health Data Privacy Disclosure &nbsp;|&nbsp; Your Ads Privacy Choices</p>
+      <p style="margin-top:6px;">© 2024–2026, ShoppersMart.com, Inc. or its affiliates</p>
+    </div>
+  </footer>
+
+  <!-- ===================================================
+       SCRIPTS
+       =================================================== -->
+  <script src="products.js"></script>
+  <script src="cart.js"></script>
+  <script>
+    // -------------------------------------------------------
+    // State
+    // -------------------------------------------------------
+    let currentSlide = 0;
+    let sliderInterval;
+    let activeCategory = "";
+    let activeQuery = "";
+    let activeSortBy = "featured";
+    let currentPage = 1;
+    const ITEMS_PER_PAGE = 8;
+    let currentModalProductId = null;
+
+    // -------------------------------------------------------
+    // Init
+    // -------------------------------------------------------
+    document.addEventListener("DOMContentLoaded", () => {
+      updateCartBadge();
+      startSlider();
+      renderDeals();
+      renderProducts(searchProducts("", "", "featured"));
+    });
+
+    // -------------------------------------------------------
+    // Hero Slider
+    // -------------------------------------------------------
+    function changeSlide(direction) {
+      const slides = document.querySelectorAll(".hero-slide");
+      currentSlide = (currentSlide + direction + slides.length) % slides.length;
+      updateSlider();
+      resetSliderInterval();
+    }
+
+    function goToSlide(index) {
+      currentSlide = index;
+      updateSlider();
+      resetSliderInterval();
+    }
+
+    function updateSlider() {
+      document.getElementById("hero-slider").style.transform = `translateX(-${currentSlide * 100}%)`;
+      document.querySelectorAll(".hero-dot").forEach((dot, i) => {
+        dot.classList.toggle("active", i === currentSlide);
+        dot.setAttribute("aria-selected", i === currentSlide);
+      });
+    }
+
+    function startSlider() {
+      sliderInterval = setInterval(() => changeSlide(1), 5000);
+    }
+
+    function resetSliderInterval() {
+      clearInterval(sliderInterval);
+      startSlider();
+    }
+
+    // -------------------------------------------------------
+    // Search
+    // -------------------------------------------------------
+    function handleSearch(e) {
+      e.preventDefault();
+      const query = document.getElementById("search-input").value.trim();
+      const category = document.getElementById("search-category").value;
+      activeQuery = query;
+      activeCategory = category;
+      activeSortBy = "featured";
+      currentPage = 1;
+      document.getElementById("sort-select").value = "featured";
+      const results = searchProducts(query, category, activeSortBy);
+      showSearchMode(query, category, results);
+    }
+
+    function showSearchMode(query, category, results) {
+      document.getElementById("categories-section").classList.add("hidden");
+      document.getElementById("deals-section").classList.add("hidden");
+      document.getElementById("results-bar").classList.remove("hidden");
+
+      const infoEl = document.getElementById("results-info");
+      const qPart = query ? `"<span>${query}</span>"` : "all products";
+      const catPart = category ? ` in <span>${category}</span>` : "";
+      infoEl.innerHTML = `${results.length.toLocaleString()} results for ${qPart}${catPart}`;
+
+      document.getElementById("products-title").textContent =
+        results.length > 0 ? "Search Results" : "No Results Found";
+      document.getElementById("products-section-header").querySelector(".see-more").onclick = resetToHome;
+
+      renderProducts(results);
+      document.getElementById("products-section").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function handleSortChange() {
+      activeSortBy = document.getElementById("sort-select").value;
+      currentPage = 1;
+      const results = searchProducts(activeQuery, activeCategory, activeSortBy);
+      renderProducts(results);
+    }
+
+    function filterByCategory(category) {
+      event && event.preventDefault();
+      activeCategory = category;
+      activeQuery = "";
+      activeSortBy = "featured";
+      currentPage = 1;
+      document.getElementById("search-input").value = "";
+      document.getElementById("search-category").value = "";
+      document.getElementById("sort-select").value = "featured";
+      const results = searchProducts("", category, "featured");
+      showSearchMode("", category, results);
+    }
+
+    function resetToHome() {
+      activeCategory = "";
+      activeQuery = "";
+      activeSortBy = "featured";
+      currentPage = 1;
+      document.getElementById("search-input").value = "";
+      document.getElementById("results-bar").classList.add("hidden");
+      document.getElementById("categories-section").classList.remove("hidden");
+      document.getElementById("deals-section").classList.remove("hidden");
+      document.getElementById("products-title").textContent = "Best Sellers";
+      document.getElementById("products-section-header").querySelector(".see-more").onclick = () => filterByCategory("");
+      renderProducts(searchProducts("", "", "featured"));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function scrollToProducts() {
+      document.getElementById("products-section").scrollIntoView({ behavior: "smooth" });
+    }
+
+    // -------------------------------------------------------
+    // Render Deals Strip
+    // -------------------------------------------------------
+    function renderDeals() {
+      const deals = PRODUCTS.filter(p => p.badge === "deal").slice(0, 6);
+      const grid = document.getElementById("deals-grid");
+      grid.innerHTML = deals.map(p => `
+        <div class="deal-card" onclick="openModal(${p.id})" role="button" tabindex="0"
+          aria-label="${p.name}, ${discountPercent(p.price, p.originalPrice)}% off"
+          onkeypress="if(event.key==='Enter')openModal(${p.id})">
+          <div class="deal-img">
+            <span aria-hidden="true">${p.emoji}</span>
+            <div class="deal-discount">Up to ${discountPercent(p.price, p.originalPrice)}% off</div>
+          </div>
+          <div class="deal-title">${p.name.substring(0, 40)}...</div>
+          <div class="deal-price">$${formatPrice(p.price)}</div>
+        </div>
+      `).join("");
+    }
+
+    // -------------------------------------------------------
+    // Render Product Grid
+    // -------------------------------------------------------
+    function renderProducts(products) {
+      const grid = document.getElementById("product-grid");
+      const totalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const pageProducts = products.slice(start, start + ITEMS_PER_PAGE);
+
+      if (pageProducts.length === 0) {
+        grid.innerHTML = `
+          <div style="grid-column:1/-1;text-align:center;padding:60px 20px;">
+            <div style="font-size:60px;margin-bottom:16px;">🔍</div>
+            <h3 style="font-size:20px;margin-bottom:8px;">No results found</h3>
+            <p style="color:#555;margin-bottom:20px;">Try adjusting your search or browse our categories.</p>
+            <button class="btn-continue-shopping" onclick="resetToHome()">Browse All Products</button>
+          </div>`;
+        document.getElementById("pagination").innerHTML = "";
+        return;
+      }
+
+      grid.innerHTML = pageProducts.map(p => createProductCard(p)).join("");
+      renderPagination(totalPages, products);
+    }
+
+    function createProductCard(p) {
+      const discount = discountPercent(p.price, p.originalPrice);
+      const badgeHTML = p.badge ? `<span class="product-badge ${p.badge}">${p.badgeText}</span>` : "";
+      return `
+        <article class="product-card" role="listitem" onclick="openModal(${p.id})"
+          tabindex="0" aria-label="${p.name}"
+          onkeypress="if(event.key==='Enter')openModal(${p.id})">
+          <div class="product-card-img">
+            <span aria-hidden="true">${p.emoji}</span>
+            ${badgeHTML}
+          </div>
+          <div class="product-card-body">
+            <p class="product-brand">${p.brand}</p>
+            <h3 class="product-title">${p.name}</h3>
+            <div class="stars" aria-label="${p.rating} out of 5 stars">
+              <span class="star-icons" aria-hidden="true">${getStarHTML(p.rating)}</span>
+              <span class="review-count">(${p.reviews.toLocaleString()})</span>
+            </div>
+            <div class="price-block">
+              <span class="price-current" aria-label="Price: $${formatPrice(p.price)}">
+                <sup>$</sup>${Math.floor(p.price)}<sup style="font-size:12px">.${(p.price % 1).toFixed(2).slice(2)}</sup>
+              </span>
+              <span class="price-original" aria-label="Original price: $${formatPrice(p.originalPrice)}">$${formatPrice(p.originalPrice)}</span>
+              <div class="price-save">Save ${discount}%</div>
+            </div>
+            ${p.prime ? '<div class="prime-badge" aria-label="Prime eligible">⚡ Prime</div>' : ""}
+            <p class="delivery-text">FREE delivery <strong>Tomorrow</strong></p>
+            <button class="btn-add-cart" onclick="event.stopPropagation(); quickAddToCart(${p.id})" aria-label="Add ${p.name} to cart">
+              Add to Cart
+            </button>
+            <button class="btn-buy-now" onclick="event.stopPropagation(); openModal(${p.id})" aria-label="Buy ${p.name} now">
+              Buy Now
+            </button>
+          </div>
+        </article>`;
+    }
+
+    // -------------------------------------------------------
+    // Pagination
+    // -------------------------------------------------------
+    function renderPagination(totalPages, products) {
+      const el = document.getElementById("pagination");
+      if (totalPages <= 1) { el.innerHTML = ""; return; }
+
+      let html = `<button class="page-btn" onclick="goToPage(${currentPage - 1}, event)" ${currentPage === 1 ? "disabled" : ""} aria-label="Previous page">&#8249;</button>`;
+
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 1) {
+          html += `<button class="page-btn ${i === currentPage ? "active" : ""}" onclick="goToPage(${i}, event)" aria-label="Page ${i}" ${i === currentPage ? 'aria-current="page"' : ""}>${i}</button>`;
+        } else if (Math.abs(i - currentPage) === 2) {
+          html += `<span style="padding:0 4px">…</span>`;
+        }
+      }
+
+      html += `<button class="page-btn" onclick="goToPage(${currentPage + 1}, event)" ${currentPage === totalPages ? "disabled" : ""} aria-label="Next page">&#8250;</button>`;
+      el.innerHTML = html;
+    }
+
+    function goToPage(page, e) {
+      if (e) e.stopPropagation();
+      currentPage = page;
+      const results = searchProducts(activeQuery, activeCategory, activeSortBy);
+      renderProducts(results);
+      document.getElementById("products-section").scrollIntoView({ behavior: "smooth" });
+    }
+
+    // -------------------------------------------------------
+    // Quick Add to Cart (from card)
+    // -------------------------------------------------------
+    function quickAddToCart(productId) {
+      addToCart(productId, 1);
+      const p = getProductById(productId);
+      if (p) showToast(`"${p.name.substring(0, 40)}…" added to cart`);
+    }
+
+    // -------------------------------------------------------
+    // Product Modal
+    // -------------------------------------------------------
+    function openModal(productId) {
+      const p = getProductById(productId);
+      if (!p) return;
+      currentModalProductId = productId;
+
+      const discount = discountPercent(p.price, p.originalPrice);
+
+      document.getElementById("modal-img").textContent = p.emoji;
+      document.getElementById("modal-brand").textContent = `by ${p.brand} | ${p.category}`;
+      document.getElementById("modal-product-title").textContent = p.name;
+      document.getElementById("modal-stars").innerHTML = `
+        <span class="star-icons" aria-hidden="true">${getStarHTML(p.rating)}</span>
+        <span style="font-size:13px;color:#007185">${p.rating} (${p.reviews.toLocaleString()} reviews)</span>
+      `;
+      document.getElementById("modal-price").innerHTML = `$${formatPrice(p.price)}`;
+      document.getElementById("modal-original").textContent = `Was: $${formatPrice(p.originalPrice)}`;
+      document.getElementById("modal-save").textContent = `You save: $${formatPrice(p.originalPrice - p.price)} (${discount}%)`;
+      document.getElementById("modal-prime").style.display = p.prime ? "flex" : "none";
+      document.getElementById("modal-features").innerHTML = p.features.map(f => `<li>${f}</li>`).join("");
+      document.getElementById("modal-qty-select").value = "1";
+      document.getElementById("modal-btn-cart").dataset.productId = productId;
+      document.getElementById("modal-btn-buy").dataset.productId = productId;
+
+      document.getElementById("product-modal").classList.add("open");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeModal() {
+      document.getElementById("product-modal").classList.remove("open");
+      document.body.style.overflow = "";
+      currentModalProductId = null;
+    }
+
+    function closeModalOnOverlay(e) {
+      if (e.target === document.getElementById("product-modal")) closeModal();
+    }
+
+    function addToCartFromModal() {
+      if (!currentModalProductId) return;
+      const qty = parseInt(document.getElementById("modal-qty-select").value);
+      addToCart(currentModalProductId, qty);
+      const p = getProductById(currentModalProductId);
+      showToast(`${qty}× "${p.name.substring(0, 35)}…" added to cart`);
+      closeModal();
+    }
+
+    function buyNowFromModal() {
+      if (!currentModalProductId) return;
+      const qty = parseInt(document.getElementById("modal-qty-select").value);
+      addToCart(currentModalProductId, qty);
+      closeModal();
+      window.location.href = "cart.html";
+    }
+
+    // -------------------------------------------------------
+    // Order Overlay
+    // -------------------------------------------------------
+    function closeOrderOverlay() {
+      document.getElementById("order-overlay").classList.remove("open");
+      document.body.style.overflow = "";
+    }
+
+    // -------------------------------------------------------
+    // Keyboard Navigation
+    // -------------------------------------------------------
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape") {
+        closeModal();
+        closeOrderOverlay();
+      }
+    });
+
+    // -------------------------------------------------------
+    // All Menu placeholder
+    // -------------------------------------------------------
+    function toggleAllMenu() {
+      showToast("Browse categories using the navigation bar or search", "☰");
+    }
+  </script>
+
+</body>
+</html>
