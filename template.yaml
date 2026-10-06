@@ -188,19 +188,9 @@ Resources:
         Rules:
           - Id: ImagesStorageTiering
             Status: Enabled
-            Filter:
-              Prefix: ""
             Transitions:
-              # Move to Standard-IA after 60 days.
-              # Standard-IA costs ~58% less than Standard for storage
-              # but charges per retrieval - suitable for infrequently
-              # accessed images (older product photos, archived items).
               - StorageClass: STANDARD_IA
                 TransitionInDays: 60
-              # Move to Glacier after 180 days.
-              # Glacier costs ~80% less than Standard but retrieval
-              # takes minutes to hours - suitable for archival images
-              # that are rarely if ever retrieved.
               - StorageClass: GLACIER
                 TransitionInDays: 180
 
@@ -252,8 +242,8 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub "${BucketName}-oac"
-        Description: !Sub "OAC for ShoppersMart website bucket - ${BucketName}"
+        Name: !Sub "${AWS::StackName}-website-oac"
+        Description: !Sub "OAC for ShoppersMart website bucket - ${AWS::StackName}"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -280,15 +270,15 @@ Resources:
     Type: AWS::WAFv2::WebACL
     Condition: CreateWAF
     Properties:
-      Name: !Sub "${BucketName}-waf"
+      Name: shoppersmart-website-996178-waf
       Scope: CLOUDFRONT
-      Description: !Sub "WAF WebACL for ShoppersMart CloudFront distribution - ${BucketName}"
+      Description: WAF WebACL for ShoppersMart CloudFront distribution
       DefaultAction:
         Allow: {}
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: !Sub "${BucketName}-waf"
+        MetricName: shoppersmart-website-996178-waf
       Rules:
         - Name: AWSManagedRulesSQLiRuleSet
           Priority: 0
