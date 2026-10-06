@@ -22,21 +22,18 @@
 
 [CmdletBinding()]
 param (
-    [string]$StackName       = "shoppersmart-website",
-    [string]$BucketName      = "",
+    [string]$StackName        = "shoppersmart-website",
+    [string]$BucketName       = "shoppersmart-website-996178",
     [string]$ImagesBucketName = "",
-    [string]$Region          = "us-east-1",
-    [string]$Profile         = ""
+    [string]$Region           = "us-east-1",
+    [string]$Profile          = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# Generate random bucket names if none supplied
-if ($BucketName -eq "") {
-    $rand       = Get-Random -Minimum 100000 -Maximum 999999
-    $BucketName = "shoppersmart-website-$rand"
-}
+# BucketName is fixed to the existing bucket - never generate a new one.
+# ImagesBucketName gets a random default only on first deploy.
 if ($ImagesBucketName -eq "") {
     $rand             = Get-Random -Minimum 100000 -Maximum 999999
     $ImagesBucketName = "shoppersmart-images-$rand"
@@ -111,30 +108,24 @@ if (-not (Test-Path $TemplatePath)) {
 Write-Ok "Found: $TemplatePath"
 
 # -------------------------------------------------------
-# Step 3b - If the stack already exists, reuse its bucket
-#           names so CloudFormation does not try to replace
-#           the S3 buckets (S3 buckets cannot be renamed).
+# Step 3b - If the stack already exists, reuse the images
+#           bucket name so CloudFormation does not try to
+#           replace it on subsequent deploys.
+#           The website bucket name is always fixed above.
 # -------------------------------------------------------
 
 $stackExists = $false
 try {
-    $existingStack = aws cloudformation describe-stacks --stack-name $StackName @(Get-AwsBaseArgs) | ConvertFrom-Json
-    $stackExists   = $true
+    $existingStack  = aws cloudformation describe-stacks --stack-name $StackName @(Get-AwsBaseArgs) | ConvertFrom-Json
+    $stackExists    = $true
     $existingParams = $existingStack.Stacks[0].Parameters
 
-    $existingBucket = ($existingParams | Where-Object { $_.ParameterKey -eq "BucketName"       }).ParameterValue
     $existingImages = ($existingParams | Where-Object { $_.ParameterKey -eq "ImagesBucketName" }).ParameterValue
-
-    if ($existingBucket -and $BucketName -ne $existingBucket) {
-        Write-Host "   Reusing existing website bucket: $existingBucket" -ForegroundColor DarkYellow
-        $BucketName = $existingBucket
-    }
-    if ($existingImages -and $ImagesBucketName -ne $existingImages) {
-        Write-Host "   Reusing existing images bucket : $existingImages" -ForegroundColor DarkYellow
+    if ($existingImages) {
+        Write-Host "   Reusing existing images bucket: $existingImages" -ForegroundColor DarkYellow
         $ImagesBucketName = $existingImages
     }
 } catch {
-    # Stack does not exist yet - first deploy, use generated names
     $stackExists = $false
 }
 
