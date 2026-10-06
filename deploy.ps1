@@ -111,6 +111,34 @@ if (-not (Test-Path $TemplatePath)) {
 Write-Ok "Found: $TemplatePath"
 
 # -------------------------------------------------------
+# Step 3b - If the stack already exists, reuse its bucket
+#           names so CloudFormation does not try to replace
+#           the S3 buckets (S3 buckets cannot be renamed).
+# -------------------------------------------------------
+
+$stackExists = $false
+try {
+    $existingStack = aws cloudformation describe-stacks --stack-name $StackName @(Get-AwsBaseArgs) | ConvertFrom-Json
+    $stackExists   = $true
+    $existingParams = $existingStack.Stacks[0].Parameters
+
+    $existingBucket = ($existingParams | Where-Object { $_.ParameterKey -eq "BucketName"       }).ParameterValue
+    $existingImages = ($existingParams | Where-Object { $_.ParameterKey -eq "ImagesBucketName" }).ParameterValue
+
+    if ($existingBucket -and $BucketName -ne $existingBucket) {
+        Write-Host "   Reusing existing website bucket: $existingBucket" -ForegroundColor DarkYellow
+        $BucketName = $existingBucket
+    }
+    if ($existingImages -and $ImagesBucketName -ne $existingImages) {
+        Write-Host "   Reusing existing images bucket : $existingImages" -ForegroundColor DarkYellow
+        $ImagesBucketName = $existingImages
+    }
+} catch {
+    # Stack does not exist yet - first deploy, use generated names
+    $stackExists = $false
+}
+
+# -------------------------------------------------------
 # Step 4 - Deploy CloudFormation stack
 # -------------------------------------------------------
 
