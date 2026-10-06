@@ -385,6 +385,36 @@
   <script src="cart.js"></script>
   <script>
     // -------------------------------------------------------
+    // Images CDN configuration
+    //
+    // Product images are served from the CloudFront /images/ path,
+    // which routes to the dedicated images S3 bucket via the
+    // /images/* cache behaviour on the CloudFront distribution.
+    //
+    // To reference a product image in code use:
+    //   IMAGES_BASE_URL + "/product-name.jpg"
+    //
+    // This resolves to the relative path /images/product-name.jpg,
+    // which CloudFront routes to the images S3 bucket automatically.
+    // No absolute URL is needed - relative paths work on any domain.
+    // -------------------------------------------------------
+    const IMAGES_BASE_URL = "/images";
+
+    // Helper: returns an <img> tag if a product has an image filename,
+    // otherwise falls back to the emoji placeholder.
+    function productImageHTML(p, cssClass) {
+      if (p.image) {
+        return `<img src="${IMAGES_BASE_URL}/${p.image}"
+                     alt="${p.name}"
+                     class="${cssClass}"
+                     loading="lazy"
+                     onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+                <span aria-hidden="true" style="display:none">${p.emoji}</span>`;
+      }
+      return `<span aria-hidden="true">${p.emoji}</span>`;
+    }
+
+    // -------------------------------------------------------
     // State
     // -------------------------------------------------------
     let currentSlide = 0;
@@ -523,7 +553,7 @@
           aria-label="${p.name}, ${discountPercent(p.price, p.originalPrice)}% off"
           onkeypress="if(event.key==='Enter')openModal(${p.id})">
           <div class="deal-img">
-            <span aria-hidden="true">${p.emoji}</span>
+            ${productImageHTML(p, "deal-card-img")}
             <div class="deal-discount">Up to ${discountPercent(p.price, p.originalPrice)}% off</div>
           </div>
           <div class="deal-title">${p.name.substring(0, 40)}...</div>
@@ -565,7 +595,7 @@
           tabindex="0" aria-label="${p.name}"
           onkeypress="if(event.key==='Enter')openModal(${p.id})">
           <div class="product-card-img">
-            <span aria-hidden="true">${p.emoji}</span>
+            ${productImageHTML(p, "product-card-img-tag")}
             ${badgeHTML}
           </div>
           <div class="product-card-body">
@@ -642,7 +672,10 @@
 
       const discount = discountPercent(p.price, p.originalPrice);
 
-      document.getElementById("modal-img").textContent = p.emoji;
+      document.getElementById("modal-img").innerHTML = p.image
+        ? `<img src="${IMAGES_BASE_URL}/${p.image}" alt="${p.name}" style="width:100%;height:100%;object-fit:contain;"
+             onerror="this.style.display='none';this.insertAdjacentText('afterend','${p.emoji}')" />`
+        : p.emoji;
       document.getElementById("modal-brand").textContent = `by ${p.brand} | ${p.category}`;
       document.getElementById("modal-product-title").textContent = p.name;
       document.getElementById("modal-stars").innerHTML = `

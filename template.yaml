@@ -1,10 +1,11 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  ShoppersMart - S3 static website hosting with CloudFront CDN and AWS WAF protection.
-  Creates an S3 bucket with static website hosting enabled, a CloudFront distribution
-  using Origin Access Control (OAC) to restrict direct S3 access, a WAF WebACL with
-  AWS-managed SQL injection protection attached to the distribution, and a bucket policy
-  that allows only CloudFront to read objects. All public access to S3 is blocked.
+  ShoppersMart - S3 static website + images bucket with CloudFront CDN and AWS WAF protection.
+  Creates a website S3 bucket and a dedicated images S3 bucket, both with Transfer Acceleration
+  enabled and public access fully blocked. CloudFront serves both buckets via separate origins
+  using Origin Access Control (OAC). The images bucket has Lifecycle Rules to transition objects
+  to Standard-IA after 60 days and Glacier after 180 days. WAF protects the distribution with
+  SQL injection and known bad inputs managed rule groups.
   NOTE: This stack must be deployed to us-east-1 because CloudFront-scoped WAF WebACLs
   are only supported in that region.
 
@@ -16,7 +17,17 @@ Parameters:
   BucketName:
     Type: String
     Description: >
-      Globally unique name for the S3 bucket.
+      Globally unique name for the S3 website bucket.
+      Must be lowercase letters, numbers, and hyphens only (3-63 characters).
+    AllowedPattern: "^[a-z0-9][a-z0-9\\-]{1,61}[a-z0-9]$"
+    ConstraintDescription: >
+      Must be 3-63 characters, lowercase alphanumeric and hyphens,
+      cannot start or end with a hyphen.
+
+  ImagesBucketName:
+    Type: String
+    Description: >
+      Globally unique name for the dedicated images S3 bucket.
       Must be lowercase letters, numbers, and hyphens only (3-63 characters).
     AllowedPattern: "^[a-z0-9][a-z0-9\\-]{1,61}[a-z0-9]$"
     ConstraintDescription: >
@@ -63,11 +74,8 @@ Parameters:
 # ===========================================================
 Conditions:
 
-  # WAF for CloudFront must reside in us-east-1. Guard against accidental
-  # deployment to another region with a condition used on WAF resources.
   IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
 
-  # Combined: only create WAF resources when both the flag is on AND region is correct.
   CreateWAF: !And
     - !Equals [!Ref EnableWAF, "true"]
     - !Condition IsUsEast1
@@ -78,37 +86,37 @@ Conditions:
 Resources:
 
   # -----------------------------------------------------------
-  # S3 Bucket - static website hosting, public access BLOCKED
+  # S3 Website Bucket
+  # Static website hosting, public access BLOCKED,
+  # Transfer Acceleration ENABLED for faster uploads.
   # -----------------------------------------------------------
   ShoppersMartBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref BucketName
 
-      # Static website hosting - keeps IndexDocument / ErrorDocument behaviour;
-      # CloudFront mirrors this via DefaultRootObject and custom error responses.
       WebsiteConfiguration:
         IndexDocument: !Ref IndexDocument
         ErrorDocument: !Ref ErrorDocument
 
-      # Block ALL public access - content is only reachable through CloudFront.
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-      # Optional: enable versioning so you can roll back deployments
       VersioningConfiguration:
         Status: Enabled
 
-      # S3 request metrics - required for AllRequests to appear in CloudWatch.
-      # Without this configuration the AWS/S3 AllRequests metric is never emitted.
-      # The Id "EntireBucket" scopes the filter to every object in the bucket.
+      # Transfer Acceleration - allows uploads to use the nearest
+      # CloudFront edge location for faster transfers to this bucket.
+      AccelerateConfiguration:
+        AccelerationStatus: Enabled
+
+      # S3 request metrics - required for AllRequests CloudWatch metric.
       MetricsConfigurations:
         - Id: EntireBucket
 
-      # CORS - allows browser fetch calls from the CloudFront distribution origin
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders:
@@ -127,7 +135,7 @@ Resources:
           Value: Production
 
   # -----------------------------------------------------------
-  # Bucket Policy - grants CloudFront OAC read access only
+  # Website Bucket Policy - CloudFront OAC access only
   # -----------------------------------------------------------
   ShoppersMartBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -144,35 +152,129 @@ Resources:
             Resource: !Sub "arn:aws:s3:::${BucketName}/*"
             Condition:
               StringEquals:
-                # Restricts access to this specific CloudFront distribution only
                 AWS:SourceArn: !Sub
                   - "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistId}"
                   - DistId: !GetAtt ShoppersMartDistribution.Id
 
   # -----------------------------------------------------------
-  # CloudFront Origin Access Control (OAC)
-  # Signs requests from CloudFront to S3 using SigV4 so the
-  # bucket policy can verify the request came from this distribution.
+  # S3 Images Bucket
+  # Dedicated bucket for product images, public access BLOCKED.
+  # Transfer Acceleration ENABLED for faster image uploads.
+  # Lifecycle Rules transition objects to cheaper storage tiers
+  # after 60 days (Standard-IA) and 180 days (Glacier).
+  # -----------------------------------------------------------
+  ShoppersMartImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ImagesBucketName
+
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+      VersioningConfiguration:
+        Status: Enabled
+
+      # Transfer Acceleration - allows uploads to use the nearest
+      # CloudFront edge location for faster transfers to this bucket.
+      AccelerateConfiguration:
+        AccelerationStatus: Enabled
+
+      # Lifecycle Rules - automatically move images to cheaper storage
+      # tiers as they age, reducing costs without deleting content.
+      LifecycleConfiguration:
+        Rules:
+          - Id: ImagesStorageTiering
+            Status: Enabled
+            Filter:
+              Prefix: ""
+            Transitions:
+              # Move to Standard-IA after 60 days.
+              # Standard-IA costs ~58% less than Standard for storage
+              # but charges per retrieval - suitable for infrequently
+              # accessed images (older product photos, archived items).
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 60
+              # Move to Glacier after 180 days.
+              # Glacier costs ~80% less than Standard but retrieval
+              # takes minutes to hours - suitable for archival images
+              # that are rarely if ever retrieved.
+              - StorageClass: GLACIER
+                TransitionInDays: 180
+
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - "*"
+            MaxAge: 86400
+
+      Tags:
+        - Key: Project
+          Value: ShoppersMart
+        - Key: BucketPurpose
+          Value: ProductImages
+        - Key: Environment
+          Value: Production
+
+  # -----------------------------------------------------------
+  # Images Bucket Policy - CloudFront OAC access only
+  # -----------------------------------------------------------
+  ShoppersMartImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ShoppersMartImagesBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontOACGetObject
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${ImagesBucketName}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub
+                  - "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DistId}"
+                  - DistId: !GetAtt ShoppersMartDistribution.Id
+
+  # -----------------------------------------------------------
+  # OAC for the Website Bucket
   # -----------------------------------------------------------
   ShoppersMartOAC:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
         Name: !Sub "${BucketName}-oac"
-        Description: !Sub "OAC for ShoppersMart S3 bucket - ${BucketName}"
+        Description: !Sub "OAC for ShoppersMart website bucket - ${BucketName}"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
 
   # -----------------------------------------------------------
-  # WAF WebACL - SQL injection protection (CloudFront scope)
-  #
-  # Uses the AWS-managed rule group AWSManagedRulesSQLiRuleSet which
-  # covers the OWASP Top 10 SQL injection attack patterns across all
-  # request components (URI, query string, body, headers, cookies).
-  #
-  # Scope MUST be CLOUDFRONT and the stack MUST be in us-east-1.
-  # The EnableWAF parameter lets you disable this for dev environments.
+  # OAC for the Images Bucket
+  # A separate OAC is required because each OAC is bound to a
+  # single origin; one OAC cannot be shared across two buckets.
+  # -----------------------------------------------------------
+  ShoppersMartImagesOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${ImagesBucketName}-oac"
+        Description: !Sub "OAC for ShoppersMart images bucket - ${ImagesBucketName}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # -----------------------------------------------------------
+  # WAF WebACL - SQL injection and known bad inputs protection
   # -----------------------------------------------------------
   ShoppersMartWebACL:
     Type: AWS::WAFv2::WebACL
@@ -181,33 +283,16 @@ Resources:
       Name: !Sub "${BucketName}-waf"
       Scope: CLOUDFRONT
       Description: !Sub "WAF WebACL for ShoppersMart CloudFront distribution - ${BucketName}"
-
-      # Default action: allow all requests that do not match any rule.
-      # Individual rules below override this for matched requests.
       DefaultAction:
         Allow: {}
-
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
         MetricName: !Sub "${BucketName}-waf"
-
       Rules:
-        # -------------------------------------------------------
-        # Rule 1: AWS Managed Rules - SQL Database rule group
-        #
-        # AWSManagedRulesSQLiRuleSet inspects all request components
-        # for SQL injection signatures. Managed by AWS Threat Intelligence;
-        # no signature updates required from your side.
-        #
-        # Priority 0 - evaluated first.
-        # -------------------------------------------------------
         - Name: AWSManagedRulesSQLiRuleSet
           Priority: 0
           OverrideAction:
-            # "None" means use the action defined inside the managed rule group
-            # (Block for matched requests). Change to Count: {} to switch to
-            # monitoring-only mode without blocking traffic.
             None: {}
           Statement:
             ManagedRuleGroupStatement:
@@ -217,16 +302,6 @@ Resources:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: AWSManagedRulesSQLiRuleSet
-
-        # -------------------------------------------------------
-        # Rule 2: AWS Managed Rules - Known Bad Inputs rule group
-        #
-        # Blocks request patterns that are known to be invalid and
-        # are associated with exploitation (e.g. Log4JRCE, PROPFIND).
-        # Complements the SQLi rule group at no extra managed-rule cost.
-        #
-        # Priority 1 - evaluated after SQLi rule.
-        # -------------------------------------------------------
         - Name: AWSManagedRulesKnownBadInputsRuleSet
           Priority: 1
           OverrideAction:
@@ -239,7 +314,6 @@ Resources:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: AWSManagedRulesKnownBadInputsRuleSet
-
       Tags:
         - Key: Project
           Value: ShoppersMart
@@ -248,14 +322,20 @@ Resources:
 
   # -----------------------------------------------------------
   # CloudFront Distribution
-  # Uses the S3 REST endpoint as the origin (required for OAC).
-  # DefaultRootObject and custom error responses replicate the
-  # behaviour that S3 static website hosting normally provides.
-  # The WAF WebACL ARN is attached when the CreateWAF condition is true.
+  #
+  # Two origins:
+  #   S3Origin       - website bucket (default behaviour)
+  #   S3ImagesOrigin - images bucket  (/images/* path pattern)
+  #
+  # Requests to /images/* are routed to the images bucket.
+  # All other requests go to the website bucket.
+  # Both origins use OAC for authenticated S3 access.
   # -----------------------------------------------------------
   ShoppersMartDistribution:
     Type: AWS::CloudFront::Distribution
-    DependsOn: ShoppersMartBucket
+    DependsOn:
+      - ShoppersMartBucket
+      - ShoppersMartImagesBucket
     Properties:
       DistributionConfig:
         Comment: !Sub "ShoppersMart CDN - ${BucketName}"
@@ -263,32 +343,33 @@ Resources:
         HttpVersion: http2and3
         PriceClass: !Ref PriceClass
 
-        # Attach the WAF WebACL when it was created; omit the property otherwise.
-        # CloudFront reads WAF from us-east-1 automatically.
         WebACLId: !If
           - CreateWAF
           - !GetAtt ShoppersMartWebACL.Arn
           - !Ref "AWS::NoValue"
 
-        # Serve index.html when the root path "/" is requested
         DefaultRootObject: !Ref IndexDocument
 
-        # S3 REST API endpoint (NOT the website endpoint) - required for OAC
         Origins:
+          # Origin 1 - static website files
           - Id: S3Origin
-            # Regional endpoint avoids eventual-consistency issues with global endpoints
             DomainName: !Sub "${BucketName}.s3.${AWS::Region}.amazonaws.com"
             OriginAccessControlId: !GetAtt ShoppersMartOAC.Id
             S3OriginConfig:
-              # Must be empty string when using OAC (OAI is not used)
               OriginAccessIdentity: ""
 
+          # Origin 2 - product images bucket
+          - Id: S3ImagesOrigin
+            DomainName: !Sub "${ImagesBucketName}.s3.${AWS::Region}.amazonaws.com"
+            OriginAccessControlId: !GetAtt ShoppersMartImagesOAC.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+
+        # Default behaviour - serves website files from S3Origin
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
           ViewerProtocolPolicy: redirect-to-https
-          # Use the AWS-managed CachingOptimized policy (ID is a well-known constant)
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          # Use the AWS-managed CORS-S3Origin origin request policy
           OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
           Compress: true
           AllowedMethods:
@@ -298,9 +379,24 @@ Resources:
             - GET
             - HEAD
 
-        # Mirror S3 website hosting error behaviour:
-        # S3 returns 403 (access denied) for missing objects when public access
-        # is blocked, so map both 403 and 404 to the error document.
+        # /images/* behaviour - routes to the images bucket.
+        # Uses a longer TTL (1 day) since product images change
+        # infrequently compared to HTML/CSS/JS files.
+        CacheBehaviors:
+          - PathPattern: "/images/*"
+            TargetOriginId: S3ImagesOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            # CachingOptimized managed policy - 24h default TTL
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+            Compress: true
+            AllowedMethods:
+              - GET
+              - HEAD
+            CachedMethods:
+              - GET
+              - HEAD
+
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -319,14 +415,6 @@ Resources:
 
   # -----------------------------------------------------------
   # CloudWatch Dashboard
-  #
-  # Displays two widgets side by side:
-  #   Left  - CloudFront Requests (namespace AWS/CloudFront, us-east-1)
-  #   Right - S3 AllRequests      (namespace AWS/S3, stack region)
-  #
-  # CloudFront metrics are always published to us-east-1 regardless of
-  # where the stack is deployed, so the widget region is hardcoded there.
-  # S3 request metrics require the MetricsConfiguration on the bucket above.
   # -----------------------------------------------------------
   ShoppersMartDashboard:
     Type: AWS::CloudWatch::Dashboard
@@ -396,7 +484,7 @@ Resources:
 Outputs:
 
   CloudFrontURL:
-    Description: CloudFront distribution URL (HTTPS) - use this as your website address
+    Description: CloudFront distribution URL - use this as your website address
     Value: !Sub "https://${ShoppersMartDistribution.DomainName}"
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontURL"
@@ -413,6 +501,12 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
 
+  ImagesCloudFrontPath:
+    Description: CloudFront path prefix for product images - reference images as this URL + /images/filename.jpg
+    Value: !Sub "https://${ShoppersMartDistribution.DomainName}/images"
+    Export:
+      Name: !Sub "${AWS::StackName}-ImagesCloudFrontPath"
+
   WAFWebACLArn:
     Description: ARN of the WAF WebACL attached to the CloudFront distribution
     Condition: CreateWAF
@@ -421,35 +515,66 @@ Outputs:
       Name: !Sub "${AWS::StackName}-WAFWebACLArn"
 
   WAFWebACLId:
-    Description: ID of the WAF WebACL (use in the WAF console to view metrics and sampled requests)
+    Description: ID of the WAF WebACL
     Condition: CreateWAF
     Value: !GetAtt ShoppersMartWebACL.Id
     Export:
       Name: !Sub "${AWS::StackName}-WAFWebACLId"
 
   WebsiteURL:
-    Description: >
-      S3 static website endpoint (HTTP - direct access is now blocked;
-      kept as a reference for the bucket's website hosting configuration).
+    Description: S3 static website endpoint (direct access blocked - reference only)
     Value: !GetAtt ShoppersMartBucket.WebsiteURL
     Export:
       Name: !Sub "${AWS::StackName}-WebsiteURL"
 
   BucketName:
-    Description: Name of the S3 bucket
+    Description: Name of the website S3 bucket
     Value: !Ref ShoppersMartBucket
     Export:
       Name: !Sub "${AWS::StackName}-BucketName"
 
   BucketArn:
-    Description: ARN of the S3 bucket
+    Description: ARN of the website S3 bucket
     Value: !GetAtt ShoppersMartBucket.Arn
     Export:
       Name: !Sub "${AWS::StackName}-BucketArn"
 
+  ImagesBucketName:
+    Description: Name of the images S3 bucket
+    Value: !Ref ShoppersMartImagesBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-ImagesBucketName"
+
+  ImagesBucketArn:
+    Description: ARN of the images S3 bucket
+    Value: !GetAtt ShoppersMartImagesBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ImagesBucketArn"
+
+  ImagesBucketAcceleratedEndpoint:
+    Description: >
+      Transfer Acceleration endpoint for the images bucket.
+      Use this endpoint (instead of the standard endpoint) when uploading
+      images for the fastest transfer speed via CloudFront edge locations.
+    Value: !Sub "${ImagesBucketName}.s3-accelerate.amazonaws.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-ImagesBucketAcceleratedEndpoint"
+
+  WebsiteBucketAcceleratedEndpoint:
+    Description: >
+      Transfer Acceleration endpoint for the website bucket.
+      Use this endpoint when deploying website files for fastest uploads.
+    Value: !Sub "${BucketName}.s3-accelerate.amazonaws.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteBucketAcceleratedEndpoint"
+
   S3ConsoleURL:
-    Description: Direct link to the bucket in the AWS Console
+    Description: Direct link to the website bucket in the AWS Console
     Value: !Sub "https://s3.console.aws.amazon.com/s3/buckets/${BucketName}"
+
+  ImagesS3ConsoleURL:
+    Description: Direct link to the images bucket in the AWS Console
+    Value: !Sub "https://s3.console.aws.amazon.com/s3/buckets/${ImagesBucketName}"
 
   DashboardURL:
     Description: CloudWatch dashboard URL

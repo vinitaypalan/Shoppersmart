@@ -22,19 +22,24 @@
 
 [CmdletBinding()]
 param (
-    [string]$StackName  = "shoppersmart-website",
-    [string]$BucketName = "",
-    [string]$Region     = "us-east-1",
-    [string]$Profile    = ""
+    [string]$StackName       = "shoppersmart-website",
+    [string]$BucketName      = "",
+    [string]$ImagesBucketName = "",
+    [string]$Region          = "us-east-1",
+    [string]$Profile         = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# Generate a random bucket name if none supplied
+# Generate random bucket names if none supplied
 if ($BucketName -eq "") {
     $rand       = Get-Random -Minimum 100000 -Maximum 999999
     $BucketName = "shoppersmart-website-$rand"
+}
+if ($ImagesBucketName -eq "") {
+    $rand             = Get-Random -Minimum 100000 -Maximum 999999
+    $ImagesBucketName = "shoppersmart-images-$rand"
 }
 
 # -------------------------------------------------------
@@ -110,15 +115,16 @@ Write-Ok "Found: $TemplatePath"
 # -------------------------------------------------------
 
 Write-Step "Step 4 - Deploying CloudFormation stack '$StackName'"
-Write-Host "   Bucket name : $BucketName" -ForegroundColor Gray
-Write-Host "   Region      : $Region"     -ForegroundColor Gray
+Write-Host "   Bucket name        : $BucketName"        -ForegroundColor Gray
+Write-Host "   Images bucket name : $ImagesBucketName"  -ForegroundColor Gray
+Write-Host "   Region             : $Region"            -ForegroundColor Gray
 Write-Host "   Note: CloudFront distribution creation takes 5-15 minutes." -ForegroundColor DarkYellow
 
 $cfnArgs = @(
     "cloudformation", "deploy",
     "--stack-name",          $StackName,
     "--template-file",       $TemplatePath,
-    "--parameter-overrides", "BucketName=$BucketName",
+    "--parameter-overrides", "BucketName=$BucketName", "ImagesBucketName=$ImagesBucketName",
     "--capabilities",        "CAPABILITY_IAM",
     "--no-fail-on-empty-changeset"
 ) + (Get-AwsBaseArgs)
@@ -142,17 +148,23 @@ $stackRaw  = aws cloudformation describe-stacks --stack-name $StackName @(Get-Aw
 $stackObj  = $stackRaw | ConvertFrom-Json
 $outputs   = $stackObj.Stacks[0].Outputs
 
-$ActualBucket       = ($outputs | Where-Object { $_.OutputKey -eq "BucketName"            }).OutputValue
-$CloudFrontURL      = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontURL"          }).OutputValue
-$CloudFrontDomain   = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontDomainName"   }).OutputValue
-$DistributionId     = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontDistributionId" }).OutputValue
-$WebsiteURL         = ($outputs | Where-Object { $_.OutputKey -eq "WebsiteURL"             }).OutputValue
-$DashboardURL       = ($outputs | Where-Object { $_.OutputKey -eq "DashboardURL"           }).OutputValue
+$ActualBucket           = ($outputs | Where-Object { $_.OutputKey -eq "BucketName"                     }).OutputValue
+$ActualImagesBucket     = ($outputs | Where-Object { $_.OutputKey -eq "ImagesBucketName"               }).OutputValue
+$CloudFrontURL          = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontURL"                  }).OutputValue
+$CloudFrontDomain       = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontDomainName"           }).OutputValue
+$DistributionId         = ($outputs | Where-Object { $_.OutputKey -eq "CloudFrontDistributionId"       }).OutputValue
+$WebsiteURL             = ($outputs | Where-Object { $_.OutputKey -eq "WebsiteURL"                     }).OutputValue
+$DashboardURL           = ($outputs | Where-Object { $_.OutputKey -eq "DashboardURL"                   }).OutputValue
+$ImagesPath             = ($outputs | Where-Object { $_.OutputKey -eq "ImagesCloudFrontPath"           }).OutputValue
+$ImagesAccelEndpoint    = ($outputs | Where-Object { $_.OutputKey -eq "ImagesBucketAcceleratedEndpoint"}).OutputValue
 
-Write-Ok "Bucket             : $ActualBucket"
+Write-Ok "Website bucket     : $ActualBucket"
+Write-Ok "Images bucket      : $ActualImagesBucket"
 Write-Ok "CloudFront URL     : $CloudFrontURL"
+Write-Ok "Images CDN path    : $ImagesPath"
 Write-Ok "Distribution ID    : $DistributionId"
 Write-Ok "Dashboard          : $DashboardURL"
+Write-Ok "Images accel. URL  : $ImagesAccelEndpoint (use for fast image uploads)"
 Write-Ok "S3 website URL     : $WebsiteURL (direct access blocked - for reference only)"
 
 # -------------------------------------------------------
@@ -244,9 +256,11 @@ Write-Host ""
 Write-Host "=======================================================" -ForegroundColor Yellow
 Write-Host "  ShoppersMart is live!"                                  -ForegroundColor Yellow
 Write-Host ""
-Write-Host "  Website URL  : $CloudFrontURL"   -ForegroundColor White
-Write-Host "  Dashboard    : $DashboardURL"    -ForegroundColor White
-Write-Host "  S3 Bucket    : $ActualBucket"    -ForegroundColor White
+Write-Host "  Website URL  : $CloudFrontURL"      -ForegroundColor White
+Write-Host "  Images path  : $ImagesPath"         -ForegroundColor White
+Write-Host "  Dashboard    : $DashboardURL"        -ForegroundColor White
+Write-Host "  Web Bucket   : $ActualBucket"        -ForegroundColor White
+Write-Host "  Img Bucket   : $ActualImagesBucket"  -ForegroundColor White
 Write-Host "  Stack Name   : $StackName"       -ForegroundColor White
 Write-Host "  Region       : $Region"          -ForegroundColor White
 Write-Host "=======================================================" -ForegroundColor Yellow
@@ -258,5 +272,6 @@ Write-Host "    Re-run this script - it will upload files and invalidate the cac
 Write-Host ""
 Write-Host "  To remove all AWS resources later:"
 Write-Host "    aws s3 rm s3://$ActualBucket --recursive"
+Write-Host "    aws s3 rm s3://$ActualImagesBucket --recursive"
 Write-Host "    aws cloudformation delete-stack --stack-name $StackName --region $Region"
 Write-Host ""
