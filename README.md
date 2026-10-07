@@ -44,7 +44,7 @@
 > You can find your URL by running `.\deploy.ps1` (it is printed at the end) or by checking the `CloudFrontURL` output in the AWS CloudFormation console.
 
 ```
-https://<your-cloudfront-distribution-id>.cloudfront.net
+https://d10mvnfq85ndrd.cloudfront.net/
 ```
 
 No live demo is published in this repository to avoid exposing AWS account identifiers.
@@ -58,7 +58,8 @@ No live demo is published in this repository to avoid exposing AWS account ident
 
 | Homepage | Product Modal | Cart |
 |----------|--------------|------|
-| _(add screenshot)_ | _(add screenshot)_ | _(add screenshot)_ |
+|<img width="1865" height="1017" alt="image" src="https://github.com/user-attachments/assets/69ec6859-ff91-46a9-acb9-bd6dce03d41c" />
+| _(add screenshot)_ | _(add screenshot)_ |
 
 **How to capture screenshots quickly:**
 1. Deploy the site with `.\deploy.ps1` and open the printed CloudFront URL.
